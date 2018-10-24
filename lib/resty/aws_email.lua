@@ -9,6 +9,8 @@ local http     = require 'resty.http'
 local xml      = require 'xml'
 local cjson     = require 'cjson'
 local email_from = ''
+local reply_to = nil
+local return_path = nil
 local config = {
   aws_service  = 'ses',  
   aws_key      = nil,
@@ -31,6 +33,8 @@ function _M:new(c)
   if not c.aws_key then return error('Missing required aws_key') end
   if not c.email_from then return error('Need to specify email_from') end
   email_from = c.email_from
+  reply_to = c.reply_to
+  return_path = c.return_path
   config.aws_secret = c.aws_secret
   config.aws_region = c.aws_region
   config.aws_key  = c.aws_key
@@ -80,6 +84,12 @@ function _M.send_templated(self, email_to, template, data)
 
   self.set_template(template, data)
   self.set_destination(email_to)
+  if reply_to then
+    self.set_reply_to(reply_to)
+  end
+  if return_path then
+    self.set_return_path(return_path)
+  end
   return self.request()
 end
 
@@ -100,6 +110,12 @@ function _M.send(self, email_to, subject, message)
 
   self.set_destination(email_to)
   self.set_message(message)
+  if reply_to then
+    self.set_reply_to(reply_to)
+  end
+  if return_path then
+    self.set_return_path(return_path)
+  end
   return self.request()
 end
 
@@ -133,6 +149,20 @@ function _M.set_template(template, data)
   else
     config.request_body['TemplateData'] = tostring(data)
   end
+end
+
+function _M.set_reply_to(email)
+  if type(email) == 'table' then
+    for k, v in ipairs(email) do
+      config.request_body['ReplyToAddresses.member.' .. k] = tostring(v)
+    end
+  else
+    config.request_body['ReplyToAddresses.member.1'] = tostring(email)
+  end
+end
+
+function _M.set_return_path(email)
+  config.request_body['ReturnPath'] = tostring(email)
 end
 
 function _M.is_email(email)
